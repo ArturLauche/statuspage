@@ -6,11 +6,17 @@
     <script src="index.js"></script>
   </head>
   <body>
-    <div class="pageContainer">
+    <main class="pageContainer">
       <div class="headline">
         <img src="https://priority.cdn.leunos.com/logo-lauche-c-og.png" alt="Logo" width="100px" />
-        <span> System Status for Lauche Websites</span>
+        <div class="headlineText">
+          <h1>System Status</h1>
+          <span>Lauche Websites</span>
+        </div>
       </div>
+      <p class="pageDescription">
+        Live availability and recent outage details across all monitored services.
+      </p>
       <div id="reports" class="reportContainer"></div>
       <div id="tooltip" class="tooltip" style="opacity: 0">
         <div id="tooltipArrow" class="tooltipArrow"></div>
@@ -20,16 +26,9 @@
         <div id="tooltipDescription" class="tooltipDescription"></div>
       </div>
       <div id="templates" style="display: none">
-        <div
-          id="statusSquareTemplate"
-          class="statusSquare $color"
-          data-status="$color"
-        ></div>
+        <div id="statusSquareTemplate" class="statusSquare $color" data-status="$color"></div>
         <div id="statusLineTemplate" class="statusLine"></div>
-        <div
-          id="statusStreamContainerTemplate"
-          class="statusStreamContainer"
-        ></div>
+        <div id="statusStreamContainerTemplate" class="statusStreamContainer"></div>
         <div id="statusContainerTemplate" class="statusContainer">
           <div class="statusHeader">
             <h6 class="statusTitle">$title&nbsp;</h6>
@@ -37,17 +36,19 @@
           </div>
           <div class="statusSubtitle">
             <div class="sectionUrl"><a href="$url">$url</a></div>
-            <div class="statusUptime">$upTime in the last 30 days</div>
+            <div class="statusUptime">$upTime uptime (30 days)</div>
+          </div>
+          <div class="statusMeta">
+            <span>$incidentCount outages</span>
+            <span>$outageTime estimated downtime</span>
           </div>
         </div>
       </div>
-    </div>
+    </main>
     <footer>
-      <a href="https://leunos.com/n-privacy-policy"
-        >Privacy Policy</a>
-      <br>
-      <a href="https://leunos.com/n-impressum"
-        >Impressum</a>
+      <a href="https://leunos.com/n-privacy-policy">Privacy Policy</a>
+      <br />
+      <a href="https://leunos.com/n-impressum">Impressum</a>
     </footer>
   </body>
   <script>
