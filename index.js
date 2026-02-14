@@ -223,9 +223,15 @@ function showTooltip(element, key, date, color) {
   statusDiv.innerText = getStatusText(color);
   statusDiv.className = color;
 
-  toolTipDiv.style.top = element.offsetTop + element.offsetHeight + 10;
-  toolTipDiv.style.left =
+  const pagePadding = 12;
+  const top = element.offsetTop + element.offsetHeight + 10;
+  const desiredLeft =
     element.offsetLeft + element.offsetWidth / 2 - toolTipDiv.offsetWidth / 2;
+  const maxLeft = window.innerWidth - toolTipDiv.offsetWidth - pagePadding;
+  const left = Math.max(pagePadding, Math.min(desiredLeft, maxLeft));
+
+  toolTipDiv.style.top = top;
+  toolTipDiv.style.left = left;
   toolTipDiv.style.opacity = "1";
 }
 

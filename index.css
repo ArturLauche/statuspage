@@ -115,6 +115,12 @@ footer a {
   margin: 96px auto;
 }
 
+.headlineLogo {
+  width: 100px;
+  max-width: 100%;
+  height: auto;
+}
+
 .headline {
   display: flex;
   align-items: center;
@@ -297,9 +303,49 @@ footer a {
 }
 
 @media screen and (max-width: 800px) {
+  body {
+    padding: 0 12px;
+  }
+
+  footer {
+    margin: 24px 0 32px;
+  }
+
   .pageContainer {
-    padding: 30px 20px;
-    margin: 0 auto 40px auto;
+    padding: 22px 14px;
+    margin: 16px auto 24px;
+    border-radius: 12px;
+  }
+
+  .headline {
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .headlineLogo {
+    width: 84px;
+    flex-shrink: 0;
+  }
+
+  .headline span {
+    margin-left: 0;
+    font-size: 13px;
+    line-height: 1.35;
+    padding: 6px 8px;
+  }
+
+  .reportContainer {
+    margin: 20px auto 0;
+  }
+
+  .statusContainer {
+    padding: 14px 12px;
+  }
+
+  .statusContainer + .statusContainer {
+    margin-top: 14px;
   }
 
   .statusHeader,
@@ -320,12 +366,67 @@ footer a {
     display: inline-block;
   }
 
+  .statusTitle {
+    overflow-wrap: anywhere;
+  }
+
+  .sectionUrl a {
+    overflow-wrap: anywhere;
+  }
+
+  .statusStreamContainer {
+    gap: 2px;
+  }
+
   .statusSquare + .statusSquare {
-    margin-left: 1px;
+    margin-left: 0;
   }
 
   .statusSquare {
-    min-width: 4px;
+    min-width: 0;
+    height: 24px;
     width: 100%;
+  }
+
+  .uptimeContainer {
+    margin-top: 10px;
+  }
+
+  .tooltip {
+    width: min(240px, calc(100vw - 24px));
+  }
+}
+
+@media screen and (max-width: 480px) {
+  body {
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .pageContainer {
+    padding: 16px 10px;
+    margin-top: 10px;
+  }
+
+  .headline {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .headlineLogo {
+    width: 76px;
+  }
+
+  .headline span {
+    font-size: 12px;
+  }
+
+  .statusContainer {
+    padding: 12px 10px;
+  }
+
+  .statusSquare {
+    height: 20px;
   }
 }
