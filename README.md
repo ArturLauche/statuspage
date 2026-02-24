@@ -40,6 +40,15 @@ key2=https://statsig.com
 
 This project uses GitHub actions to wake up every hour and run a shell script health-check.sh). This script runs curl on every URL in your config and appends the result of that run to a log file and commits it to the repository. This log is then pulled dynamically from index.html and displayed in an easily consumable fashion. You can also run that script from your own infrastructure to update the status page more often.
 
+### Adaptive check intervals
+
+`health-check.sh` can now check services less frequently when they are healthy.
+
+- If the previous result is `success`, it waits `SUCCESS_CHECK_INTERVAL_MINUTES` before checking again (default: `120`).
+- If the previous result is `failed`, it waits `FAILURE_CHECK_INTERVAL_MINUTES` before checking again (default: `30`).
+
+This keeps healthy services on a higher interval while still retrying unhealthy services more aggressively.
+
 ## What does it not do (yet)?
 
 1. Incident management.
