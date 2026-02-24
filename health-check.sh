@@ -11,6 +11,13 @@ fi
 KEYSARRAY=()
 URLSARRAY=()
 
+# If the previous check for a service was successful, we can check less often.
+# Defaults are chosen to keep outages detected quickly while reducing load for
+# stable services.
+successIntervalMinutes=${SUCCESS_CHECK_INTERVAL_MINUTES:-120}
+failureIntervalMinutes=${FAILURE_CHECK_INTERVAL_MINUTES:-30}
+didWrite=false
+
 urlsConfig="./urls.cfg"
 echo "Reading $urlsConfig"
 while read -r line
@@ -32,6 +39,41 @@ do
   url="${URLSARRAY[index]}"
   echo "  $key=$url"
 
+  logFile="logs/${key}_report.log"
+  shouldCheck=true
+  if [[ -f "$logFile" ]]
+  then
+    lastEntry=$(tail -1 "$logFile")
+    IFS=',' read -r lastDateRaw lastResultRaw <<< "$lastEntry"
+    lastDate=$(echo "$lastDateRaw" | xargs)
+    lastResult=$(echo "$lastResultRaw" | xargs)
+    if [[ -n "$lastDate" && -n "$lastResult" ]]
+    then
+      nowEpoch=$(date +%s)
+      lastEpoch=$(date -d "$lastDate" +%s 2>/dev/null)
+      if [[ -n "$lastEpoch" ]]
+      then
+        elapsedMinutes=$(( (nowEpoch - lastEpoch) / 60 ))
+        intervalMinutes=$failureIntervalMinutes
+        if [[ "$lastResult" == "success" ]]
+        then
+          intervalMinutes=$successIntervalMinutes
+        fi
+
+        if (( elapsedMinutes < intervalMinutes ))
+        then
+          shouldCheck=false
+          echo "    skipping check (${elapsedMinutes}m since last ${lastResult}; interval ${intervalMinutes}m)"
+        fi
+      fi
+    fi
+  fi
+
+  if [[ $shouldCheck == false ]]
+  then
+    continue
+  fi
+
   for i in 1 2 3 4; 
   do
     response=$(curl --write-out '%{http_code}' --silent --output /dev/null $url)
@@ -48,15 +90,16 @@ do
   dateTime=$(date +'%Y-%m-%d %H:%M')
   if [[ $commit == true ]]
   then
-    echo $dateTime, $result >> "logs/${key}_report.log"
+    echo $dateTime, $result >> "$logFile"
     # By default we keep 2000 last log entries.  Feel free to modify this to meet your needs.
-    echo "$(tail -2000 logs/${key}_report.log)" > "logs/${key}_report.log"
+    echo "$(tail -2000 "$logFile")" > "$logFile"
+    didWrite=true
   else
     echo "    $dateTime, $result"
   fi
 done
 
-if [[ $commit == true ]]
+if [[ $commit == true && $didWrite == true ]]
 then
   # Let's make Vijaye the most productive person on GitHub.
   git config --global user.name 'Artur L.'
@@ -64,4 +107,7 @@ then
   git add -A --force logs/
   git commit -am '[Automated] Update Health Check Logs'
   git push
+elif [[ $commit == true ]]
+then
+  echo "No checks were due based on configured intervals; skipping commit."
 fi
