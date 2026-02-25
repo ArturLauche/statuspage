@@ -14,8 +14,8 @@ URLSARRAY=()
 # If the previous check for a service was successful, we can check less often.
 # Defaults are chosen to keep outages detected quickly while reducing load for
 # stable services.
-successIntervalMinutes=${SUCCESS_CHECK_INTERVAL_MINUTES:-120}
-failureIntervalMinutes=${FAILURE_CHECK_INTERVAL_MINUTES:-30}
+successIntervalMinutes=${SUCCESS_CHECK_INTERVAL_MINUTES:-30}
+failureIntervalMinutes=${FAILURE_CHECK_INTERVAL_MINUTES:-5}
 didWrite=false
 
 urlsConfig="./urls.cfg"
