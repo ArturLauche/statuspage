@@ -127,7 +127,7 @@ footer a {
   justify-content: center;
 }
 
-.headline span {
+.headline h1 {
   background-color: #f5f6f8;
   border-radius: 5px;
   padding: 6px;
@@ -329,7 +329,7 @@ footer a {
     flex-shrink: 0;
   }
 
-  .headline span {
+  .headline h1 {
     margin-left: 0;
     font-size: 13px;
     line-height: 1.35;
@@ -418,7 +418,7 @@ footer a {
     width: 76px;
   }
 
-  .headline span {
+  .headline h1 {
     font-size: 12px;
   }
 

@@ -1,16 +1,69 @@
-<html>
+<!doctype html>
+<html lang="en">
   <head>
-    <title>Status Page</title>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lauche System Status | Real-Time Website Uptime</title>
+    <meta
+      name="description"
+      content="Check the live system status, uptime history, and incident reports for Lauche websites and services."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Lauche" />
+
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="Lauche System Status | Real-Time Website Uptime"
+    />
+    <meta
+      property="og:description"
+      content="Live status updates and 30-day uptime insights for Lauche websites and services."
+    />
+    <meta
+      property="og:image"
+      content="https://priority.cdn.leunos.com/logo-lauche-c-og.png"
+    />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Lauche System Status | Real-Time Website Uptime"
+    />
+    <meta
+      name="twitter:description"
+      content="Live status updates and 30-day uptime insights for Lauche websites and services."
+    />
+    <meta
+      name="twitter:image"
+      content="https://priority.cdn.leunos.com/logo-lauche-c-og.png"
+    />
+
     <link rel="stylesheet" href="index.css" />
-    <script src="index.js"></script>
+    <script src="index.js" defer></script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Lauche System Status",
+        "description": "Live status, uptime monitoring, and incident updates for Lauche websites and services.",
+        "url": "/"
+      }
+    </script>
   </head>
   <body>
-    <div class="pageContainer">
-      <div class="headline">
-        <img class="headlineLogo" src="https://priority.cdn.leunos.com/logo-lauche-c-og.png" alt="Logo" width="100px" />
-        <span>System Status for Lauche Websites</span>
-      </div>
+    <main class="pageContainer">
+      <header class="headline">
+        <img
+          class="headlineLogo"
+          src="https://priority.cdn.leunos.com/logo-lauche-c-og.png"
+          alt="Lauche logo"
+          width="100px"
+        />
+        <h1>System Status for Lauche Websites</h1>
+      </header>
       <div id="reports" class="reportContainer"></div>
       <div id="tooltip" class="tooltip" style="opacity: 0">
         <div id="tooltipArrow" class="tooltipArrow"></div>
@@ -32,7 +85,7 @@
         ></div>
         <div id="statusContainerTemplate" class="statusContainer">
           <div class="statusHeader">
-            <h6 class="statusTitle">$title&nbsp;</h6>
+            <h2 class="statusTitle">$title&nbsp;</h2>
             <div class="$color statusHeadline">$status</div>
           </div>
           <div class="statusSubtitle">
@@ -41,16 +94,11 @@
           </div>
         </div>
       </div>
-    </div>
+    </main>
     <footer>
-      <a href="https://leunos.com/n-privacy-policy"
-        >Privacy Policy</a>
-      <br>
-      <a href="https://leunos.com/n-impressum"
-        >Impressum</a>
+      <a href="https://leunos.com/n-privacy-policy">Privacy Policy</a>
+      <br />
+      <a href="https://leunos.com/n-impressum">Impressum</a>
     </footer>
   </body>
-  <script>
-    genAllReports();
-  </script>
 </html>
