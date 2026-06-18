@@ -9,7 +9,15 @@ then
 fi
 
 KEYSARRAY=()
-URLSARRAY=()
+declare -A URLBYKEY=()
+
+# Trim leading/trailing whitespace (including stray carriage returns).
+trim() {
+  local v="$*"
+  v="${v#"${v%%[![:space:]]*}"}"
+  v="${v%"${v##*[![:space:]]}"}"
+  printf '%s' "$v"
+}
 
 # If the previous check for a service was successful, we can check less often.
 # Defaults are chosen to keep outages detected quickly while reducing load for
@@ -20,12 +28,22 @@ didWrite=false
 
 urlsConfig="./urls.cfg"
 echo "Reading $urlsConfig"
-while read -r line
+while IFS= read -r line || [[ -n "$line" ]]
 do
   echo "  $line"
-  IFS='=' read -ra TOKENS <<< "$line"
-  KEYSARRAY+=(${TOKENS[0]})
-  URLSARRAY+=(${TOKENS[1]})
+  line="$(trim "$line")"
+  # Skip blank lines and comments.
+  [[ -z "$line" || "$line" == \#* ]] && continue
+  # Split on the first '=' only, so URLs may contain '=' (e.g. query params).
+  [[ "$line" != *=* ]] && continue
+  key="$(trim "${line%%=*}")"
+  url="$(trim "${line#*=}")"
+  [[ -z "$key" || -z "$url" ]] && continue
+  # De-duplicate keys; the last URL wins, matching the web UI.
+  if [[ -z "${URLBYKEY[$key]+set}" ]]; then
+    KEYSARRAY+=("$key")
+  fi
+  URLBYKEY["$key"]="$url"
 done < "$urlsConfig"
 
 echo "***********************"
@@ -33,10 +51,9 @@ echo "Starting health checks with ${#KEYSARRAY[@]} configs:"
 
 mkdir -p logs
 
-for (( index=0; index < ${#KEYSARRAY[@]}; index++))
+for key in "${KEYSARRAY[@]}"
 do
-  key="${KEYSARRAY[index]}"
-  url="${URLSARRAY[index]}"
+  url="${URLBYKEY[$key]}"
   echo "  $key=$url"
 
   logFile="logs/${key}_report.log"

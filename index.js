@@ -71,6 +71,7 @@ function parseLog(text) {
   let sum = 0;
   let count = 0;
   let latest = 0;
+  let current = null; // result (1/0) of the single most recent check
 
   for (const row of text.split("\n")) {
     if (!row.trim()) continue;
@@ -81,11 +82,16 @@ function parseLog(text) {
       Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT")
     );
     if (isNaN(dateTime)) continue;
-    latest = Math.max(latest, dateTime.getTime());
+
+    const result = resultStr.trim() === "success" ? 1 : 0;
+    if (dateTime.getTime() >= latest) {
+      latest = dateTime.getTime();
+      current = result;
+    }
 
     const dateStr = dateTime.toDateString();
-    (byDate[dateStr] ||= []).push(resultStr.trim() === "success" ? 1 : 0);
-    sum += resultStr.trim() === "success" ? 1 : 0;
+    (byDate[dateStr] ||= []).push(result);
+    sum += result;
     count++;
   }
 
@@ -103,6 +109,7 @@ function parseLog(text) {
     days,
     upTime: count ? ((sum / count) * 100).toFixed(2) + "%" : "—",
     latest,
+    current,
   };
 }
 
@@ -160,7 +167,8 @@ function formatUrl(url) {
 }
 
 function buildServiceCard(key, url, data) {
-  const color = getColor(data.days[0]);
+  // Headline status reflects the latest check; the bars show daily history.
+  const color = getColor(data.current);
   const card = templatize("statusContainerTemplate", {
     title: humanize(key),
     url,
@@ -226,15 +234,23 @@ function updateOverall(colors) {
   const banner = $("#overallStatus");
   banner.className = "overall overall--" + state;
   $("#overallIcon").innerHTML = OVERALL[state].icon;
-  $("#overallTitle").innerText = OVERALL[state].title;
 
-  const operational = counts.success;
-  $("#overallSubtitle").innerText =
-    total === 0
-      ? "No services configured"
-      : `${operational} of ${total} ${
-          total === 1 ? "service" : "services"
-        } operational`;
+  // Don't claim "All Systems Operational" while some services have no data —
+  // drop the absolute wording and surface the missing data in the subtitle.
+  let title = OVERALL[state].title;
+  if (state === "operational" && counts.nodata > 0) title = "Systems Operational";
+  $("#overallTitle").innerText = title;
+
+  $("#overallSubtitle").innerText = buildSubtitle(total, counts);
+}
+
+function buildSubtitle(total, counts) {
+  if (total === 0) return "No services configured";
+  const parts = [`${counts.success} of ${total} operational`];
+  if (counts.partial) parts.push(`${counts.partial} degraded`);
+  if (counts.failure) parts.push(`${counts.failure} down`);
+  if (counts.nodata) parts.push(`${counts.nodata} awaiting data`);
+  return parts.join(" · ");
 }
 
 function updateLastUpdated() {
@@ -366,7 +382,7 @@ async function render() {
   lastUpdatedTs = 0;
   services.forEach((service, i) => {
     const data = results[i];
-    colors.push(getColor(data.days[0]));
+    colors.push(getColor(data.current));
     lastUpdatedTs = Math.max(lastUpdatedTs, data.latest);
     fragment.appendChild(buildServiceCard(service.key, service.url, data));
   });
