@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -11,6 +11,7 @@
     />
     <meta name="robots" content="index, follow" />
     <meta name="author" content="Lauche" />
+    <meta name="theme-color" content="#ffffff" />
 
     <meta property="og:type" content="website" />
     <meta
@@ -40,6 +41,29 @@
       content="https://priority.cdn.leunos.com/logo-lauche-c-og.png"
     />
 
+    <!-- Set theme before paint to avoid a flash of the wrong color scheme -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
     <link rel="stylesheet" href="index.css" />
     <script src="index.js" defer></script>
 
@@ -54,51 +78,168 @@
     </script>
   </head>
   <body>
-    <main class="pageContainer">
-      <header class="headline">
-        <img
-          class="headlineLogo"
-          src="https://priority.cdn.leunos.com/logo-lauche-c-og.png"
-          alt="Lauche logo"
-          width="100px"
-        />
-        <h1>System Status for Lauche Websites</h1>
-      </header>
-      <div id="reports" class="reportContainer"></div>
-      <div id="tooltip" class="tooltip" style="opacity: 0">
-        <div id="tooltipArrow" class="tooltipArrow"></div>
-        <div id="tooltipDateTime" class="tooltipDateTime"></div>
-        <div id="tooltipStatus" class="tooltipStatus"></div>
-        <hr />
-        <div id="tooltipDescription" class="tooltipDescription"></div>
-      </div>
-      <div id="templates" style="display: none">
-        <div
-          id="statusSquareTemplate"
-          class="statusSquare $color"
-          data-status="$color"
-        ></div>
-        <div id="statusLineTemplate" class="statusLine"></div>
-        <div
-          id="statusStreamContainerTemplate"
-          class="statusStreamContainer"
-        ></div>
-        <div id="statusContainerTemplate" class="statusContainer">
-          <div class="statusHeader">
-            <h2 class="statusTitle">$title&nbsp;</h2>
-            <div class="$color statusHeadline">$status</div>
-          </div>
-          <div class="statusSubtitle">
-            <div class="sectionUrl"><a href="$url">$url</a></div>
-            <div class="statusUptime">$upTime in the last 30 days</div>
+    <div class="bgGlow" aria-hidden="true"></div>
+
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <img
+            class="brandLogo"
+            src="https://priority.cdn.leunos.com/logo-lauche-c-og.png"
+            alt="Lauche logo"
+            width="44"
+            height="44"
+          />
+          <div class="brandText">
+            <span class="brandName">Lauche</span>
+            <span class="brandTag">System Status</span>
           </div>
         </div>
+        <button
+          id="themeToggle"
+          class="iconButton"
+          type="button"
+          aria-label="Toggle dark mode"
+          title="Toggle dark mode"
+        >
+          <svg
+            class="iconMoon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+          <svg
+            class="iconSun"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+            />
+          </svg>
+        </button>
+      </header>
+
+      <main>
+        <section
+          id="overallStatus"
+          class="overall overall--loading"
+          aria-live="polite"
+        >
+          <div class="overallIcon" id="overallIcon" aria-hidden="true"></div>
+          <div class="overallText">
+            <h1 id="overallTitle">Checking system status…</h1>
+            <p class="overallSubtitle" id="overallSubtitle">
+              Loading the latest health checks
+            </p>
+          </div>
+          <div class="overallMeta">
+            <span class="lastUpdated" id="lastUpdated" hidden>
+              <span class="liveDot" aria-hidden="true"></span>
+              <span id="lastUpdatedText"></span>
+            </span>
+          </div>
+        </section>
+
+        <section class="controls">
+          <div class="searchWrap">
+            <svg
+              class="searchIcon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              id="serviceFilter"
+              type="search"
+              placeholder="Filter services…"
+              aria-label="Filter services"
+              autocomplete="off"
+            />
+          </div>
+          <div class="legend" aria-hidden="true">
+            <span class="legendItem"
+              ><span class="legendDot success"></span>Operational</span
+            >
+            <span class="legendItem"
+              ><span class="legendDot partial"></span>Partial</span
+            >
+            <span class="legendItem"
+              ><span class="legendDot failure"></span>Outage</span
+            >
+            <span class="legendItem"
+              ><span class="legendDot nodata"></span>No data</span
+            >
+          </div>
+        </section>
+
+        <div id="reports" class="reportContainer" aria-busy="true"></div>
+        <p id="emptyState" class="emptyState" hidden>
+          No services match your filter.
+        </p>
+      </main>
+
+      <footer>
+        <a href="https://leunos.com/n-privacy-policy">Privacy Policy</a>
+        <span class="sep" aria-hidden="true">•</span>
+        <a href="https://leunos.com/n-impressum">Impressum</a>
+      </footer>
+    </div>
+
+    <div id="tooltip" class="tooltip" role="tooltip" data-arrow="bottom">
+      <div class="tooltipDateTime" id="tooltipDateTime"></div>
+      <div class="tooltipStatus" id="tooltipStatus"></div>
+      <div class="tooltipDescription" id="tooltipDescription"></div>
+    </div>
+
+    <div id="templates" hidden>
+      <div
+        id="statusSquareTemplate"
+        class="bar $color"
+        data-status="$color"
+        role="img"
+      ></div>
+      <div id="statusContainerTemplate" class="card" data-status="$color">
+        <div class="serviceTop">
+          <span class="serviceDot $color" aria-hidden="true"></span>
+          <div class="serviceInfo">
+            <h2 class="serviceTitle">$title</h2>
+            <a
+              class="serviceUrl"
+              href="$url"
+              target="_blank"
+              rel="noopener noreferrer"
+              >$displayUrl</a
+            >
+          </div>
+          <span class="statusPill $color">$status</span>
+        </div>
+        <div class="streamBars"></div>
+        <div class="streamAxis">
+          <span class="axisStart">30 days ago</span>
+          <span class="axisUptime">$upTime uptime</span>
+          <span>Today</span>
+        </div>
       </div>
-    </main>
-    <footer>
-      <a href="https://leunos.com/n-privacy-policy">Privacy Policy</a>
-      <br />
-      <a href="https://leunos.com/n-impressum">Impressum</a>
-    </footer>
+    </div>
   </body>
 </html>

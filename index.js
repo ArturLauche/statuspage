@@ -1,261 +1,419 @@
-const maxDays = 30;
+const MAX_DAYS = 30;
+const REFRESH_MS = 60_000;
 
-async function genReportLog(container, key, url) {
-  const response = await fetch("logs/" + key + "_report.log");
-  let statusLines = "";
-  if (response.ok) {
-    statusLines = await response.text();
+const STATUS = {
+  success: { label: "Operational", desc: "No downtime recorded on this day." },
+  partial: {
+    label: "Partial Outage",
+    desc: "Partial outages recorded on this day.",
+  },
+  failure: { label: "Major Outage", desc: "Major outages recorded on this day." },
+  nodata: { label: "No Data", desc: "No health check was performed on this day." },
+};
+
+const OVERALL = {
+  operational: { title: "All Systems Operational", icon: iconCheck() },
+  degraded: { title: "Partial System Outage", icon: iconAlert() },
+  major: { title: "Major System Outage", icon: iconAlert() },
+  nodata: { title: "Awaiting Health Data", icon: iconClock() },
+};
+
+// Acronyms that should stay upper-cased when prettifying service keys.
+const ACRONYMS = new Set([
+  "ai",
+  "api",
+  "cdn",
+  "ip",
+  "nas",
+  "ui",
+  "vpn",
+  "vps",
+]);
+
+const $ = (sel) => document.querySelector(sel);
+
+let lastUpdatedTs = 0;
+
+/* ----------------------------------------------------------------- data -- */
+
+async function loadConfig() {
+  const response = await fetch("urls.cfg", { cache: "no-store" });
+  const text = await response.text();
+  // A Map de-duplicates repeated keys while preserving first-seen order; a
+  // later line for the same key updates its URL (treated as a correction).
+  const services = new Map();
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq < 1) continue;
+    const key = line.slice(0, eq).trim();
+    const url = line.slice(eq + 1).trim();
+    if (!key || !url) continue;
+    services.set(key, url);
+  }
+  return [...services].map(([key, url]) => ({ key, url }));
+}
+
+async function loadService(key) {
+  try {
+    const response = await fetch(`logs/${key}_report.log`, {
+      cache: "no-store",
+    });
+    return response.ok ? parseLog(await response.text()) : parseLog("");
+  } catch {
+    return parseLog("");
+  }
+}
+
+function parseLog(text) {
+  const byDate = {};
+  let sum = 0;
+  let count = 0;
+  let latest = 0;
+
+  for (const row of text.split("\n")) {
+    if (!row.trim()) continue;
+    const [dateTimeStr, resultStr] = row.split(",", 2);
+    if (!dateTimeStr || resultStr === undefined) continue;
+
+    const dateTime = new Date(
+      Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT")
+    );
+    if (isNaN(dateTime)) continue;
+    latest = Math.max(latest, dateTime.getTime());
+
+    const dateStr = dateTime.toDateString();
+    (byDate[dateStr] ||= []).push(resultStr.trim() === "success" ? 1 : 0);
+    sum += resultStr.trim() === "success" ? 1 : 0;
+    count++;
   }
 
-  const normalized = normalizeData(statusLines);
-  const statusStream = constructStatusStream(key, url, normalized);
-  container.appendChild(statusStream);
-}
-
-function constructStatusStream(key, url, uptimeData) {
-  let streamContainer = templatize("statusStreamContainerTemplate");
-  for (var ii = maxDays - 1; ii >= 0; ii--) {
-    let line = constructStatusLine(key, ii, uptimeData[ii]);
-    streamContainer.appendChild(line);
+  // Map each day to a relative-day index (0 = today) with its uptime average.
+  const days = {};
+  const now = Date.now();
+  for (const [dateStr, results] of Object.entries(byDate)) {
+    const rel = Math.floor(
+      Math.abs((now - new Date(dateStr).getTime()) / 86_400_000)
+    );
+    days[rel] = results.reduce((a, v) => a + v, 0) / results.length;
   }
 
-  const lastSet = uptimeData[0];
-  const color = getColor(lastSet);
-
-  const container = templatize("statusContainerTemplate", {
-    title: key,
-    url: url,
-    color: color,
-    status: getStatusText(color),
-    upTime: uptimeData.upTime,
-  });
-
-  container.appendChild(streamContainer);
-  return container;
-}
-
-function constructStatusLine(key, relDay, upTimeArray) {
-  let date = new Date();
-  date.setDate(date.getDate() - relDay);
-
-  return constructStatusSquare(key, date, upTimeArray);
-}
-
-function getColor(uptimeVal) {
-  return uptimeVal == null
-    ? "nodata"
-    : uptimeVal == 1
-    ? "success"
-    : uptimeVal < 0.3
-    ? "failure"
-    : "partial";
-}
-
-function constructStatusSquare(key, date, uptimeVal) {
-  const color = getColor(uptimeVal);
-  let square = templatize("statusSquareTemplate", {
-    color: color,
-    tooltip: getTooltip(key, date, color),
-  });
-
-  const show = () => {
-    showTooltip(square, key, date, color);
+  return {
+    days,
+    upTime: count ? ((sum / count) * 100).toFixed(2) + "%" : "—",
+    latest,
   };
-  square.addEventListener("mouseover", show);
-  square.addEventListener("mousedown", show);
-  square.addEventListener("mouseout", hideTooltip);
-  return square;
 }
+
+function getColor(value) {
+  if (value == null) return "nodata";
+  if (value === 1) return "success";
+  if (value < 0.3) return "failure";
+  return "partial";
+}
+
+/* ------------------------------------------------------------ rendering -- */
 
 let cloneId = 0;
 function templatize(templateId, parameters) {
-  let clone = document.getElementById(templateId).cloneNode(true);
-  clone.id = "template_clone_" + cloneId++;
-  if (!parameters) {
-    return clone;
-  }
-
-  applyTemplateSubstitutions(clone, parameters);
+  const clone = document.getElementById(templateId).cloneNode(true);
+  clone.id = "clone_" + cloneId++;
+  if (parameters) applyTemplateSubstitutions(clone, parameters);
   return clone;
 }
 
 function applyTemplateSubstitutions(node, parameters) {
-  const attributes = node.getAttributeNames();
-  for (var ii = 0; ii < attributes.length; ii++) {
-    const attr = attributes[ii];
-    const attrVal = node.getAttribute(attr);
-    node.setAttribute(attr, templatizeString(attrVal, parameters));
+  for (const attr of node.getAttributeNames()) {
+    node.setAttribute(attr, substitute(node.getAttribute(attr), parameters));
   }
-
-  if (node.childElementCount == 0) {
-    node.innerText = templatizeString(node.innerText, parameters);
+  if (node.childElementCount === 0) {
+    node.innerText = substitute(node.innerText, parameters);
   } else {
-    const children = Array.from(node.children);
-    children.forEach((n) => {
-      applyTemplateSubstitutions(n, parameters);
-    });
+    Array.from(node.children).forEach((child) =>
+      applyTemplateSubstitutions(child, parameters)
+    );
   }
 }
 
-function templatizeString(text, parameters) {
-  if (parameters) {
-    for (const [key, val] of Object.entries(parameters)) {
-      text = text.replaceAll("$" + key, val);
-    }
+function substitute(text, parameters) {
+  for (const [key, val] of Object.entries(parameters)) {
+    text = text.replaceAll("$" + key, val);
   }
   return text;
 }
 
-function getStatusText(color) {
-  return color == "nodata"
-    ? "No Data Available"
-    : color == "success"
-    ? "Fully Operational"
-    : color == "failure"
-    ? "Major Outage"
-    : color == "partial"
-    ? "Partial Outage"
-    : "Unknown";
+function humanize(key) {
+  return key
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) =>
+      ACRONYMS.has(word.toLowerCase())
+        ? word.toUpperCase()
+        : word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join(" ");
 }
 
-function getStatusDescriptiveText(color) {
-  return color == "nodata"
-    ? "No Data Available: Health check was not performed."
-    : color == "success"
-    ? "No downtime recorded on this day."
-    : color == "failure"
-    ? "Major outages recorded on this day."
-    : color == "partial"
-    ? "Partial outages recorded on this day."
-    : "Unknown";
+function formatUrl(url) {
+  return url.replace(/^https?:\/\//, "").replace(/\/+$/, "");
 }
 
-function getTooltip(key, date, quartile, color) {
-  let statusText = getStatusText(color);
-  return `${key} | ${date.toDateString()} : ${quartile} : ${statusText}`;
-}
+function buildServiceCard(key, url, data) {
+  const color = getColor(data.days[0]);
+  const card = templatize("statusContainerTemplate", {
+    title: humanize(key),
+    url,
+    displayUrl: formatUrl(url),
+    color,
+    status: STATUS[color].label,
+    upTime: data.upTime,
+  });
+  card.dataset.key = key;
+  card.dataset.name = (humanize(key) + " " + formatUrl(url)).toLowerCase();
 
-function create(tag, className) {
-  let element = document.createElement(tag);
-  element.className = className;
-  return element;
-}
-
-function normalizeData(statusLines) {
-  const rows = statusLines.split("\n");
-  const dateNormalized = splitRowsByDate(rows);
-
-  let relativeDateMap = {};
-  const now = Date.now();
-  for (const [key, val] of Object.entries(dateNormalized)) {
-    if (key == "upTime") {
-      continue;
-    }
-
-    const relDays = getRelativeDays(now, new Date(key).getTime());
-    relativeDateMap[relDays] = getDayAverage(val);
+  const stream = card.querySelector(".streamBars");
+  for (let rel = MAX_DAYS - 1; rel >= 0; rel--) {
+    stream.appendChild(buildBar(rel, data.days[rel]));
   }
-
-  relativeDateMap.upTime = dateNormalized.upTime;
-  return relativeDateMap;
+  return card;
 }
 
-function getDayAverage(val) {
-  if (!val || val.length == 0) {
-    return null;
+function buildBar(relDay, value) {
+  const color = getColor(value);
+  const date = new Date();
+  date.setDate(date.getDate() - relDay);
+
+  const bar = templatize("statusSquareTemplate", { color });
+  bar.setAttribute("aria-label", `${date.toDateString()}: ${STATUS[color].label}`);
+  bar.addEventListener("mouseenter", () => showTooltip(bar, date, color));
+  bar.addEventListener("mouseleave", hideTooltip);
+  return bar;
+}
+
+function buildSkeleton() {
+  const card = document.createElement("div");
+  card.className = "card skeleton";
+  card.innerHTML =
+    '<div class="skelTop">' +
+    '<span class="skelLine dot"></span>' +
+    '<span class="skelLine title"></span>' +
+    '<span class="skelLine pill"></span>' +
+    "</div>" +
+    '<div class="skelStream"></div>';
+  return card;
+}
+
+/* ------------------------------------------------------- overall status -- */
+
+function updateOverall(colors) {
+  const total = colors.length;
+  const counts = { success: 0, partial: 0, failure: 0, nodata: 0 };
+  colors.forEach((c) => counts[c]++);
+
+  const withData = total - counts.nodata;
+  let state;
+  if (total === 0 || withData === 0) {
+    state = "nodata";
+  } else if (counts.failure === 0 && counts.partial === 0) {
+    state = "operational";
+  } else if (counts.failure >= Math.ceil(withData / 2)) {
+    state = "major";
   } else {
-    return val.reduce((a, v) => a + v) / val.length;
-  }
-}
-
-function getRelativeDays(date1, date2) {
-  return Math.floor(Math.abs((date1 - date2) / (24 * 3600 * 1000)));
-}
-
-function splitRowsByDate(rows) {
-  let dateValues = {};
-  let sum = 0,
-    count = 0;
-  for (var ii = 0; ii < rows.length; ii++) {
-    const row = rows[ii];
-    if (!row) {
-      continue;
-    }
-
-    const [dateTimeStr, resultStr] = row.split(",", 2);
-    const dateTime = new Date(Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT"));
-    const dateStr = dateTime.toDateString();
-
-    let resultArray = dateValues[dateStr];
-    if (!resultArray) {
-      resultArray = [];
-      dateValues[dateStr] = resultArray;
-      if (dateValues.length > maxDays) {
-        break;
-      }
-    }
-
-    let result = 0;
-    if (resultStr.trim() == "success") {
-      result = 1;
-    }
-    sum += result;
-    count++;
-
-    resultArray.push(result);
+    state = "degraded";
   }
 
-  const upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
-  dateValues.upTime = upTime;
-  return dateValues;
+  const banner = $("#overallStatus");
+  banner.className = "overall overall--" + state;
+  $("#overallIcon").innerHTML = OVERALL[state].icon;
+  $("#overallTitle").innerText = OVERALL[state].title;
+
+  const operational = counts.success;
+  $("#overallSubtitle").innerText =
+    total === 0
+      ? "No services configured"
+      : `${operational} of ${total} ${
+          total === 1 ? "service" : "services"
+        } operational`;
 }
+
+function updateLastUpdated() {
+  const el = $("#lastUpdated");
+  if (!lastUpdatedTs) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const date = new Date(lastUpdatedTs);
+  el.title = date.toLocaleString();
+  $("#lastUpdatedText").innerText = "Updated " + relativeTime(lastUpdatedTs);
+}
+
+function relativeTime(ts) {
+  const secs = Math.round((Date.now() - ts) / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/* -------------------------------------------------------------- tooltip -- */
 
 let tooltipTimeout = null;
-function showTooltip(element, key, date, color) {
+function showTooltip(element, date, color) {
   clearTimeout(tooltipTimeout);
-  const toolTipDiv = document.getElementById("tooltip");
+  const tip = $("#tooltip");
 
-  document.getElementById("tooltipDateTime").innerText = date.toDateString();
-  document.getElementById("tooltipDescription").innerText =
-    getStatusDescriptiveText(color);
+  $("#tooltipDateTime").innerText = date.toLocaleDateString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  $("#tooltipDescription").innerText = STATUS[color].desc;
+  const status = $("#tooltipStatus");
+  status.innerText = STATUS[color].label;
+  status.className = "tooltipStatus " + color;
 
-  const statusDiv = document.getElementById("tooltipStatus");
-  statusDiv.innerText = getStatusText(color);
-  statusDiv.className = color;
+  tip.classList.add("isVisible");
 
-  const pagePadding = 12;
-  const top = element.offsetTop + element.offsetHeight + 10;
-  const desiredLeft =
-    element.offsetLeft + element.offsetWidth / 2 - toolTipDiv.offsetWidth / 2;
-  const maxLeft = window.innerWidth - toolTipDiv.offsetWidth - pagePadding;
-  const left = Math.max(pagePadding, Math.min(desiredLeft, maxLeft));
+  const rect = element.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  const pad = 8;
+  const gap = 10;
 
-  toolTipDiv.style.top = top;
-  toolTipDiv.style.left = left;
-  toolTipDiv.style.opacity = "1";
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  left = Math.max(pad, Math.min(left, window.innerWidth - tipRect.width - pad));
+
+  let top = rect.top - tipRect.height - gap;
+  let arrow = "bottom";
+  if (top < pad) {
+    top = rect.bottom + gap;
+    arrow = "top";
+  }
+
+  tip.dataset.arrow = arrow;
+  tip.style.setProperty(
+    "--arrow-left",
+    rect.left + rect.width / 2 - left + "px"
+  );
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
 }
 
 function hideTooltip() {
   tooltipTimeout = setTimeout(() => {
-    const toolTipDiv = document.getElementById("tooltip");
-    toolTipDiv.style.opacity = "0";
-  }, 1000);
+    $("#tooltip").classList.remove("isVisible");
+  }, 200);
 }
 
-async function genAllReports() {
-  const response = await fetch("urls.cfg");
-  const configText = await response.text();
-  const configLines = configText.split("\n");
-  for (let ii = 0; ii < configLines.length; ii++) {
-    const configLine = configLines[ii];
-    const [key, url] = configLine.split("=");
-    if (!key || !url) {
-      continue;
-    }
+/* ---------------------------------------------------------------- theme -- */
 
-    await genReportLog(document.getElementById("reports"), key, url);
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  try {
+    localStorage.setItem("theme", theme);
+  } catch {
+    /* ignore */
   }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0d13" : "#ffffff");
 }
 
+/* --------------------------------------------------------------- filter -- */
 
-document.addEventListener("DOMContentLoaded", genAllReports);
+function applyFilter() {
+  const query = $("#serviceFilter").value.trim().toLowerCase();
+  const cards = document.querySelectorAll("#reports .card");
+  let visible = 0;
+  cards.forEach((card) => {
+    const match = !query || (card.dataset.name || "").includes(query);
+    card.style.display = match ? "" : "none";
+    if (match) visible++;
+  });
+  $("#emptyState").hidden = visible !== 0 || cards.length === 0;
+}
+
+/* ----------------------------------------------------------------- main -- */
+
+async function render() {
+  const reports = $("#reports");
+
+  // Show skeletons on the very first paint only.
+  if (!reports.childElementCount) {
+    for (let i = 0; i < 6; i++) reports.appendChild(buildSkeleton());
+  }
+
+  let services;
+  try {
+    services = await loadConfig();
+  } catch {
+    reports.innerHTML = "";
+    reports.removeAttribute("aria-busy");
+    updateOverall([]);
+    $("#overallTitle").innerText = "Status Unavailable";
+    $("#overallSubtitle").innerText = "Could not load the service configuration.";
+    return;
+  }
+
+  const results = await Promise.all(services.map((s) => loadService(s.key)));
+
+  const fragment = document.createDocumentFragment();
+  const colors = [];
+  lastUpdatedTs = 0;
+  services.forEach((service, i) => {
+    const data = results[i];
+    colors.push(getColor(data.days[0]));
+    lastUpdatedTs = Math.max(lastUpdatedTs, data.latest);
+    fragment.appendChild(buildServiceCard(service.key, service.url, data));
+  });
+
+  reports.innerHTML = "";
+  reports.appendChild(fragment);
+  reports.removeAttribute("aria-busy");
+
+  // Stagger the entrance animation.
+  reports.querySelectorAll(".card").forEach((card, i) => {
+    card.style.animationDelay = Math.min(i * 45, 400) + "ms";
+    card.classList.add("reveal");
+  });
+
+  updateOverall(colors);
+  updateLastUpdated();
+  applyFilter();
+}
+
+function init() {
+  $("#themeToggle").addEventListener("click", () => {
+    const next =
+      document.documentElement.getAttribute("data-theme") === "dark"
+        ? "light"
+        : "dark";
+    setTheme(next);
+  });
+
+  $("#serviceFilter").addEventListener("input", applyFilter);
+
+  render();
+
+  // Refresh data and relative timestamps periodically.
+  setInterval(render, REFRESH_MS);
+  setInterval(updateLastUpdated, 30_000);
+}
+
+document.addEventListener("DOMContentLoaded", init);
+
+/* ------------------------------------------------------------- SVG icons -- */
+
+function iconCheck() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+}
+function iconAlert() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+}
+function iconClock() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+}

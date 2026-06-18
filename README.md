@@ -1,12 +1,22 @@
 [![Health Check](../../actions/workflows/health-check.yml/badge.svg)](../../actions/workflows/health-check.yml)
 
-# Statsig's Open-Source Status Page
+# Lauche System Status
 
-We tried various Status Pages out there, and built this as a fun little hobby project to make status pages as simple as possible.
+A lightweight, dependency-free status page for Lauche websites and services.
+It renders 30 days of uptime history straight from the health-check logs in
+this repository — no backend, no build step, just static files.
 
-## Demo
+## Features
 
-- https://status.statsig.com
+- **Aggregate status banner** that summarizes every service at a glance.
+- **Light & dark themes** that follow the system preference and can be toggled
+  (the choice is remembered).
+- **30-day uptime bars** per service with hover tooltips and uptime percentage.
+- **Live "last updated" indicator** and automatic refresh every minute.
+- **Service filter** and a color legend.
+- **Fully responsive**, accessible markup with reduced-motion support.
+
+> Built on top of [Statsig's open-source status page](https://github.com/statsig-io/statuspage/).
 
 ## Setup instructions
 
