@@ -320,7 +320,7 @@ function setTheme(theme) {
     /* ignore */
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0d13" : "#ffffff");
+  if (meta) meta.setAttribute("content", theme === "dark" ? "#000000" : "#ffffff");
 }
 
 /* --------------------------------------------------------------- filter -- */
